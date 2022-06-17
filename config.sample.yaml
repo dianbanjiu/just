@@ -1,0 +1,6 @@
+# Copy this file to config.yaml
+# And put config.yaml in current directory
+# Or put config.yaml to $HOME/just/config.yaml
+clash_config_path: ""
+traffic_url: ""
+subscription_url: ""
