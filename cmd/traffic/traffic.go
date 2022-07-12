@@ -17,16 +17,27 @@ var TrafficCmd = &cobra.Command{
 	Run:   printTraffic,
 }
 
+var trafficUrl string
+
+func init() {
+	TrafficCmd.Flags().StringVarP(&trafficUrl, "traffic_url", "u", "", "copy justmysocks traffic api to here")
+}
 func printTraffic(cmd *cobra.Command, args []string) {
-	u := config.CFG.GetString("traffic_url")
-	traffic, err := getTraffic(u)
+	if trafficUrl == "" {
+		trafficUrl = config.CFG.GetString("traffic_url")
+	}
+	if trafficUrl == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "traffic api url cannot be empty! ")
+		return
+	}
+	traffic, err := getTraffic(trafficUrl)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
 
 	if traffic == nil {
-		fmt.Fprintln(os.Stderr, "请求成功，但是未获取到数据，请检查 api 或者网络是否正常")
+		_, _ = fmt.Fprintln(os.Stderr, "request success, but get nothing. Please check API or network is correctly.")
 		return
 	}
 
@@ -42,7 +53,7 @@ func printTraffic(cmd *cobra.Command, args []string) {
 	default:
 		resetPrint = "流量已于今日恢复"
 	}
-	fmt.Fprintf(os.Stdout, "总流量：%dGB\n已使用流量：%dMB\n剩余流量：%dMB\n%s\n",
+	_, _ = fmt.Fprintf(os.Stdout, "总流量：%dGB\n已使用流量：%dMB\n剩余流量：%dMB\n%s\n",
 		traffic.MonthlyBwLimitB/1000/1000/1000,
 		traffic.BwCounterB/1000/1000,
 		(traffic.MonthlyBwLimitB-traffic.BwCounterB)/1000/1000,
