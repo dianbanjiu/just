@@ -23,28 +23,28 @@ var SubCmd = &cobra.Command{
 	Run:   handleSubscription,
 }
 
+var (
+	printVar        bool
+	clashConfigPath string
+	writeVar        bool
+	subscriptionUrl string
+)
+
 func init() {
-	var printVar bool
-	var path string
-	var writeVar bool
 	SubCmd.Flags().BoolVarP(&printVar, "print", "p", false, "only print subscription detail to terminal. this is default flag")
-	SubCmd.Flags().StringVarP(&path, "config", "c", "", "the clash config path")
+	SubCmd.Flags().StringVarP(&clashConfigPath, "config", "c", "", "the clash config path")
 	SubCmd.Flags().BoolVarP(&writeVar, "write", "w", false, "whether write the new subscription to clash config file")
+	SubCmd.Flags().StringVarP(&subscriptionUrl, "subscription_url", "u", "", "copy subscription url to here")
 }
 
 func handleSubscription(cmd *cobra.Command, args []string) {
 	isNeedWrite := cmd.Flags().Changed("write")
 	if isNeedWrite {
-		clashConfigPath, err := cmd.Flags().GetString("config")
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return
-		}
 		if clashConfigPath == "" {
 			clashConfigPath = config.CFG.GetString("clash_config_path")
 		}
 		if clashConfigPath == "" {
-			fmt.Fprintln(os.Stderr, "please set the clash config path via -c flag or put it in just's config.yaml")
+			_, _ = fmt.Fprintln(os.Stderr, "please set the clash config path via -c flag or put it in just's config.yaml")
 			return
 		}
 		writeConfigToFile(clashConfigPath)
@@ -53,28 +53,34 @@ func handleSubscription(cmd *cobra.Command, args []string) {
 	}
 }
 func printSubscription() {
-	u := config.CFG.GetString("subscription_url")
-	hostList, _, err := getSubscription(u)
+	if subscriptionUrl == "" {
+		subscriptionUrl = config.CFG.GetString("subscription_url")
+	}
+	if subscriptionUrl == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "subscription url cannot be empty")
+		return
+	}
+	hostList, _, err := getSubscription(subscriptionUrl)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	var temp = make([]map[string]interface{}, len(hostList))
 	raw, err := json.Marshal(hostList)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	if err = json.Unmarshal(raw, &temp); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 	}
 	for i, host := range temp {
-		fmt.Fprintln(os.Stdout, fmt.Sprintf("Server %d:", i))
+		_, _ = fmt.Fprintln(os.Stdout, fmt.Sprintf("Server %d:", i))
 		for name, value := range host {
-			fmt.Fprintln(os.Stdout, fmt.Sprintf("    %s: %v", name, value))
+			_, _ = fmt.Fprintln(os.Stdout, fmt.Sprintf("    %s: %v", name, value))
 		}
 
-		fmt.Fprintln(os.Stdout)
+		_, _ = fmt.Fprintln(os.Stdout)
 	}
 }
 
@@ -99,20 +105,26 @@ type ProxyGroup struct {
 func writeConfigToFile(configPath string) {
 	clashConfig, err := initClashConfig(configPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	u := config.CFG.GetString("subscription_url")
-	hostList, nameList, err := getSubscription(u)
+	if subscriptionUrl == "" {
+		subscriptionUrl = config.CFG.GetString("subscription_url")
+	}
+	if subscriptionUrl == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "subscription url cannot be empty")
+		return
+	}
+	hostList, nameList, err := getSubscription(subscriptionUrl)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	clashConfig.Set("proxies", hostList)
 	var proxyGroups = make([]ProxyGroup, 0)
 	err = clashConfig.UnmarshalKey("proxy-groups", &proxyGroups)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	for i := 0; i < len(proxyGroups); i++ {
@@ -121,7 +133,7 @@ func writeConfigToFile(configPath string) {
 	clashConfig.Set("proxy-groups", proxyGroups)
 	err = clashConfig.WriteConfig()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
 
@@ -152,7 +164,7 @@ func getSubscription(u string) ([]interface{}, []string, error) {
 			temp, err = socks.ParseRawSocks(string(rawHost[5:]))
 			if err != nil {
 
-				fmt.Fprintf(os.Stderr, "parse raw ss failed, err is %s\n", err.Error())
+				_, _ = fmt.Fprintf(os.Stderr, "parse raw ss failed, err is %s\n", err.Error())
 				continue
 			}
 
@@ -160,7 +172,7 @@ func getSubscription(u string) ([]interface{}, []string, error) {
 		case "vmess":
 			temp, err = vmess.ParseRawVmess(string(rawHost[8:]))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "parse raw vmess failed, err is %s\n", err.Error())
+				_, _ = fmt.Fprintf(os.Stderr, "parse raw vmess failed, err is %s\n", err.Error())
 				continue
 			}
 			nameList = append(nameList, temp.(vmess.VmessInfo).Name)
