@@ -3,11 +3,12 @@ package traffic
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/cobra"
 	"just/config"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 var TrafficCmd = &cobra.Command{
@@ -20,7 +21,7 @@ var TrafficCmd = &cobra.Command{
 var trafficUrl string
 
 func init() {
-	TrafficCmd.Flags().StringVarP(&trafficUrl, "traffic_url", "u", "", "copy justmysocks traffic api to here")
+	TrafficCmd.Flags().StringVarP(&trafficUrl, "url", "u", "", "justmysocks traffic api address")
 }
 func printTraffic(cmd *cobra.Command, args []string) {
 	if trafficUrl == "" {
@@ -47,17 +48,36 @@ func printTraffic(cmd *cobra.Command, args []string) {
 	var resetPrint string
 	switch {
 	case day > traffic.BwResetDayOfMonth:
-		resetPrint = fmt.Sprintf("流量将在下个月的%d号恢复", traffic.BwResetDayOfMonth)
+		resetPrint = fmt.Sprintf("Will reset at %d of next month", traffic.BwResetDayOfMonth)
 	case day < traffic.BwResetDayOfMonth:
-		resetPrint = fmt.Sprintf("流量将在本月的%d号恢复", traffic.BwResetDayOfMonth)
+		resetPrint = fmt.Sprintf("Will reset at %d of this month", traffic.BwResetDayOfMonth)
 	default:
-		resetPrint = "流量已于今日恢复"
+		resetPrint = "Already Reset today"
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "总流量：%dGB\n已使用流量：%dMB\n剩余流量：%dMB\n%s\n",
-		traffic.MonthlyBwLimitB/1000/1000/1000,
-		traffic.BwCounterB/1000/1000,
-		(traffic.MonthlyBwLimitB-traffic.BwCounterB)/1000/1000,
-		resetPrint)
+	_, _ = fmt.Fprintf(os.Stdout, "      All: %s\n     Used: %s\nRemaining: %s\n\n%s\n", TrafficTransToHumanRead(traffic.MonthlyBwLimitB), TrafficTransToHumanRead(traffic.BwCounterB), TrafficTransToHumanRead(traffic.MonthlyBwLimitB-traffic.BwCounterB), resetPrint)
+}
+
+func TrafficTransToHumanRead(kb int64) string {
+	if kb == 0 {
+		return ""
+	}
+	var first, last int64
+	var level uint8
+	for kb/1000 > 0 {
+		level++
+		first = kb / 1000
+		last = kb - first*1000
+		kb /= 1000
+	}
+
+	var tLevel = map[uint8]string{
+		0: "B",
+		1: "KB",
+		2: "MB",
+		3: "GB",
+		4: "TB",
+	}
+	return fmt.Sprintf("%d.%d%s", first, last, tLevel[level])
 }
 
 type trafficStatus struct {
@@ -71,7 +91,13 @@ type trafficStatus struct {
 // you can visit justmysocks website and check your subscription service,
 // you will find an API tag, copy the path to config.yaml
 func getTraffic(u string) (*trafficStatus, error) {
-	resp, err := http.Get(u)
+	var client http.Client
+	client.Timeout = 10 * time.Second
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

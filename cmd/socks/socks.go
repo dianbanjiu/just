@@ -6,33 +6,26 @@ import (
 	"strings"
 )
 
-type SocksInfo struct {
-	Name     string `json:"ps" yaml:"name" yaml:"name"`
-	Type     string `json:"type" yaml:"type"`
-	Server   string `json:"server" yaml:"server"`
-	Port     string `json:"port" yaml:"port"`
-	Cipher   string `json:"cipher" yaml:"cipher"`
-	Password string `json:"password" yaml:"password"`
-}
-
-func ParseRawSocks(raw string) (SocksInfo, error) {
-	var socks SocksInfo
+func ParseRawSocks(raw string) (map[string]string, error) {
 	psIndex := strings.LastIndexByte(raw, '#')
-	socks.Name = raw[psIndex+1:]
-
+	name := raw[psIndex+1:]
 	raw = raw[:psIndex]
 	dst, err := utils.Base64Decode(raw)
 	if err != nil {
-		return socks, err
+		return nil, err
 	}
 
 	authIndex := bytes.IndexByte(dst, ':')
-	socks.Cipher = string(dst[:authIndex])
 	passIndex := bytes.IndexByte(dst, '@')
-	socks.Password = string(dst[authIndex+1 : passIndex])
 	hostIndex := bytes.LastIndexByte(dst, ':')
-	socks.Server = string(dst[passIndex+1 : hostIndex])
-	socks.Port = string(dst[hostIndex+1:])
-	socks.Type = "ss"
-	return socks, nil
+
+	var result = map[string]string{
+		"name":     name,
+		"cipher":   string(dst[:authIndex]),
+		"password": string(dst[authIndex+1 : passIndex]),
+		"server":   string(dst[passIndex+1 : hostIndex]),
+		"port":     string(dst[hostIndex+1:]),
+		"type":     "ss",
+	}
+	return result, nil
 }

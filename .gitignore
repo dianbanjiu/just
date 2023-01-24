@@ -3,3 +3,4 @@ config.yaml
 .vscode
 just.exe
 just
+clash.yaml

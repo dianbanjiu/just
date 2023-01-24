@@ -2,6 +2,7 @@ package vmess
 
 import (
 	"encoding/json"
+	"fmt"
 	"just/utils"
 )
 
@@ -15,16 +16,25 @@ type VmessInfo struct {
 	Cipher  string `json:"cipher" yaml:"cipher"`
 }
 
-func ParseRawVmess(raw string) (VmessInfo, error) {
+func ParseRawVmess(raw string) (map[string]string, error) {
 	var vmess VmessInfo
 
 	dst, err := utils.Base64Decode(raw)
-
+	if err != nil {
+		return nil, err
+	}
 	err = json.Unmarshal(dst, &vmess)
 	if err != nil {
-		return vmess, err
+		return nil, err
 	}
-	vmess.Type = "vmess"
-	vmess.Cipher = "auto"
-	return vmess, nil
+	var result = map[string]string{
+		"name":    vmess.Name,
+		"port":    vmess.Port,
+		"server":  vmess.Server,
+		"type":    "vmess",
+		"uuid":    vmess.UUid,
+		"cipher":  "auto",
+		"alterId": fmt.Sprint(vmess.AlterId),
+	}
+	return result, nil
 }

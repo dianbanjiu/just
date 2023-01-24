@@ -3,10 +3,7 @@ package subscription
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"just/cmd/socks"
 	"just/cmd/vmess"
 	"just/config"
@@ -14,6 +11,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template"
+
+	"github.com/spf13/cobra"
 )
 
 var SubCmd = &cobra.Command{
@@ -24,17 +24,15 @@ var SubCmd = &cobra.Command{
 }
 
 var (
-	printVar        bool
 	clashConfigPath string
 	writeVar        bool
 	subscriptionUrl string
 )
 
 func init() {
-	SubCmd.Flags().BoolVarP(&printVar, "print", "p", false, "only print subscription detail to terminal. this is default flag")
 	SubCmd.Flags().StringVarP(&clashConfigPath, "config", "c", "", "the clash config path")
-	SubCmd.Flags().BoolVarP(&writeVar, "write", "w", false, "whether write the new subscription to clash config file")
-	SubCmd.Flags().StringVarP(&subscriptionUrl, "subscription_url", "u", "", "copy subscription url to here")
+	SubCmd.Flags().BoolVarP(&writeVar, "write", "w", true, "whether write the new subscription to clash config file")
+	SubCmd.Flags().StringVarP(&subscriptionUrl, "url", "u", "", "subscription url")
 }
 
 func handleSubscription(cmd *cobra.Command, args []string) {
@@ -48,50 +46,7 @@ func handleSubscription(cmd *cobra.Command, args []string) {
 			return
 		}
 		writeConfigToFile(clashConfigPath)
-	} else {
-		printSubscription()
 	}
-}
-func printSubscription() {
-	if subscriptionUrl == "" {
-		subscriptionUrl = config.CFG.GetString("subscription_url")
-	}
-	if subscriptionUrl == "" {
-		_, _ = fmt.Fprintln(os.Stderr, "subscription url cannot be empty")
-		return
-	}
-	hostList, _, err := getSubscription(subscriptionUrl)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	var temp = make([]map[string]interface{}, len(hostList))
-	raw, err := json.Marshal(hostList)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	if err = json.Unmarshal(raw, &temp); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-	}
-	for i, host := range temp {
-		_, _ = fmt.Fprintln(os.Stdout, fmt.Sprintf("Server %d:", i))
-		for name, value := range host {
-			_, _ = fmt.Fprintln(os.Stdout, fmt.Sprintf("    %s: %v", name, value))
-		}
-
-		_, _ = fmt.Fprintln(os.Stdout)
-	}
-}
-
-func initClashConfig(configPath string) (*viper.Viper, error) {
-	clashConfig := viper.New()
-	clashConfig.SetConfigFile(configPath)
-	err := clashConfig.ReadInConfig()
-	if err != nil {
-		return nil, err
-	}
-	return clashConfig, nil
 }
 
 type ProxyGroup struct {
@@ -103,11 +58,13 @@ type ProxyGroup struct {
 }
 
 func writeConfigToFile(configPath string) {
-	clashConfig, err := initClashConfig(configPath)
+	file, err := os.OpenFile(configPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModeAppend)
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintf(os.Stderr, "clash config file doesn't exist, and create new failed. err: %v", err.Error())
 		return
 	}
+	defer file.Close()
+
 	if subscriptionUrl == "" {
 		subscriptionUrl = config.CFG.GetString("subscription_url")
 	}
@@ -115,50 +72,43 @@ func writeConfigToFile(configPath string) {
 		_, _ = fmt.Fprintln(os.Stderr, "subscription url cannot be empty")
 		return
 	}
-	hostList, nameList, err := getSubscription(subscriptionUrl)
+	list, err := getSubscription(subscriptionUrl)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	clashConfig.Set("proxies", hostList)
-	var proxyGroups = make([]ProxyGroup, 0)
-	err = clashConfig.UnmarshalKey("proxy-groups", &proxyGroups)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	for i := 0; i < len(proxyGroups); i++ {
-		proxyGroups[i].Proxies = nameList
-	}
-	clashConfig.Set("proxy-groups", proxyGroups)
-	err = clashConfig.WriteConfig()
+	templ, err := template.ParseFiles("clash.yaml")
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
 
+	err = templ.Execute(file, list)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return
+	}
 }
 
 // GetSubscription 获取订阅信息
-func getSubscription(u string) ([]interface{}, []string, error) {
+func getSubscription(u string) ([]map[string]string, error) {
 	// 1. 从地址获取数据
 	sub, err := getRawSubscriptionFromUrl(u)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// 2. base64 解密
 	rawHostInfo, err := utils.Base64Decode(sub)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
 	rawHostList := bytes.Split(rawHostInfo, []byte("\n"))
-	var hostList = make([]interface{}, 0)
-	var nameList = make([]string, 0)
+
+	var hostList = make([]map[string]string, 0)
 	for _, rawHost := range rawHostList {
 		protocol := strings.ToLower(getProtocolFromRawUrl(rawHost))
-		var temp interface{}
+		var temp map[string]string
 		switch protocol {
 		case "ss":
 			temp, err = socks.ParseRawSocks(string(rawHost[5:]))
@@ -167,20 +117,17 @@ func getSubscription(u string) ([]interface{}, []string, error) {
 				_, _ = fmt.Fprintf(os.Stderr, "parse raw ss failed, err is %s\n", err.Error())
 				continue
 			}
-
-			nameList = append(nameList, temp.(socks.SocksInfo).Name)
 		case "vmess":
 			temp, err = vmess.ParseRawVmess(string(rawHost[8:]))
 			if err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "parse raw vmess failed, err is %s\n", err.Error())
 				continue
 			}
-			nameList = append(nameList, temp.(vmess.VmessInfo).Name)
 		}
 
 		hostList = append(hostList, temp)
 	}
-	return hostList, nameList, nil
+	return hostList, nil
 }
 
 // getProtocolFromRawUrl 获取代理的协议信息，如 ss、vmess
