@@ -190,8 +190,6 @@ proxy-groups:
     type: select
     # disable-udp: true
     proxies:
-    {{range .}}
-      - {{.name}}{{end}}
       - auto
 
 rules:
