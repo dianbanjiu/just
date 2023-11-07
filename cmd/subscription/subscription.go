@@ -24,28 +24,28 @@ var SubCmd = &cobra.Command{
 }
 
 var (
-	clashConfigPath string
+	proxyConfigPath string
 	writeVar        bool
 	subscriptionUrl string
 )
 
 func init() {
-	SubCmd.Flags().StringVarP(&clashConfigPath, "config", "c", "", "the clash config path")
-	SubCmd.Flags().BoolVarP(&writeVar, "write", "w", true, "whether write the new subscription to clash config file")
+	SubCmd.Flags().StringVarP(&proxyConfigPath, "config", "c", "", "the proxy config path")
+	SubCmd.Flags().BoolVarP(&writeVar, "write", "w", true, "whether write the new subscription to proxy config file")
 	SubCmd.Flags().StringVarP(&subscriptionUrl, "url", "u", "", "subscription url")
 }
 
 func handleSubscription(cmd *cobra.Command, args []string) {
 	isNeedWrite := cmd.Flags().Changed("write")
 	if isNeedWrite {
-		if clashConfigPath == "" {
-			clashConfigPath = config.CFG.GetString("clash_config_path")
+		if proxyConfigPath == "" {
+			proxyConfigPath = config.CFG.GetString("proxy_config_path")
 		}
-		if clashConfigPath == "" {
-			_, _ = fmt.Fprintln(os.Stderr, "please set the clash config path via -c flag or put it in just's config.yaml")
+		if proxyConfigPath == "" {
+			_, _ = fmt.Fprintln(os.Stderr, "please set the proxy config path via -c flag or put it in just's config.yaml")
 			return
 		}
-		writeConfigToFile(clashConfigPath)
+		writeConfigToFile(proxyConfigPath)
 	}
 }
 
@@ -60,7 +60,7 @@ type ProxyGroup struct {
 func writeConfigToFile(configPath string) {
 	file, err := os.OpenFile(configPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModeAppend)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "clash config file doesn't exist, and create new failed. err: %v", err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "proxy config file doesn't exist, and create new failed. err: %v", err.Error())
 		return
 	}
 	defer file.Close()
@@ -77,7 +77,7 @@ func writeConfigToFile(configPath string) {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	templ, err := template.ParseFiles("clash.yaml")
+	templ, err := template.ParseFiles("proxy.tpl")
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return
