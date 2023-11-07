@@ -19,24 +19,18 @@ just 只会请求 justmysocks 的提供的订阅地址和 API，不会向任何�
 ## 使用方式
 复制仓库下面的 config.sample.yaml 为 config.yaml，从 justmysocks 账户中将自己的订阅地址和流量使用 API 粘贴到 config.yaml 中
 
-复制仓库下面的 clash.sample.yaml 为 clash.yaml，根据自己的需要修改 clash.yaml 的配置  
+根据自己的需要修改 proxy.tpl  
 
 **打印流量使用情况**
 ```shell
 just usage
 ```
 
-**将订阅信息写入到 clash 的配置文件中去**，这里写入时支持两种方式进行配置
-1. 修改 just 的配置文件，将 `clash_config_path` 修改为自己 clash 配置文件的位置
-2. 通过 `-c` 参数来指定 clash 配置文件的位置
+**将订阅信息写入到指定位置**，这里写入时支持两种方式进行配置
+1. 修改 just 的配置文件，将 `proxy_config_path` 修改为自己配置文件的位置
+2. 通过 `-c` 参数来指定配置文件的位置
 
 
-为了避免意外，可以先将 clash 的配置文件先做一个备份，然后再进行写入操作  
 ```shell
-just sub -w -c ~/.config/clash/config.yaml
-```
-
-检查配置文件是否有误
-```shell
-clash -t -f ~/.config/clash/config.yaml
+just sub -w -c ~/path/to/config.yaml
 ```
