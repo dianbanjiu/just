@@ -19,7 +19,7 @@ just 只会请求 justmysocks 的提供的订阅地址和 API，不会向任何�
 ## 使用方式
 复制仓库下面的 config.sample.yaml 为 config.yaml，从 justmysocks 账户中将自己的订阅地址和流量使用 API 粘贴到 config.yaml 中
 
-根据自己的需要修改 proxy.tpl  
+复制 [examples](/examples) 下需要的文件到项目根目录下并重命名为 proxy.tpl，根据自己的需要修改 proxy.tpl  
 
 **打印流量使用情况**
 ```shell
